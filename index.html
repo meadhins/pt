@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2563eb">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Salah Dashboard</title>
+
+<style>
+body{
+  margin:0;padding:20px;max-width:700px;margin:auto;
+  font-family:system-ui,sans-serif;
+  background:linear-gradient(135deg,#f8fafc,#eef6ff,#f8fafc);
+  background-size:400% 400%;
+  animation:bg 40s ease infinite;
+  color:#0f172a;
+  transition: background 0.8s ease;
+}
+
+@keyframes bg{
+  from{background-position:0 50%}
+  to{background-position:100% 50%}
+}
+
+@keyframes pulseUrgency {
+  0%   { filter: brightness(1); }
+  50%  { filter: brightness(1.08); }
+  100% { filter: brightness(1); }
+}
+
+.time{
+  font-size:3rem;
+  font-weight:700;
+}
+
+.day{
+  color:#64748b;
+  margin-bottom:5px;
+}
+
+.card{
+  background:#fff;
+  border-radius:24px;
+  padding:16px;
+  margin:12px 0;
+  box-shadow:0 8px 30px rgba(0,0,0,.06);
+}
+
+.active{
+  border:2px solid #2563eb;
+}
+
+.name{
+  font-weight:700;
+  letter-spacing:.08em;
+}
+
+.range{
+  color:#64748b;
+  margin-top:4px;
+}
+
+.hero{
+  margin-top:12px;
+  font-size:1.1rem;
+  font-weight:600;
+}
+
+.bar{
+  height:8px;
+  background:#e5e7eb;
+  border-radius:99px;
+  position:relative;
+  margin-top:12px;
+}
+
+.fill{
+  height:100%;
+  background:#2563eb;
+  border-radius:99px;
+}
+
+.dot{
+  width:16px;
+  height:16px;
+  background:#2563eb;
+  border-radius:50%;
+  position:absolute;
+  top:50%;
+  transform:translate(-50%,-50%);
+  box-shadow:0 0 0 4px rgba(37,99,235,.15);
+}
+
+.section{
+  margin-top:24px;
+  color:#64748b;
+  text-transform:uppercase;
+  font-size:.85rem;
+}
+</style>
+</head>
+
+<body>
+
+<div id="clock" class="time"></div>
+<div id="day" class="day"></div>
+<div id="date" class="day"></div>
+
+<div id="prayers"></div>
+
+<div class="section">Restricted Times</div>
+<div id="restricted"></div>
+
+<script>
+const LAT=23.8103;
+const LNG=90.4125;
+
+function key(){
+ return "prayerTimes_"+new Date().toISOString().split('T')[0];
+}
+
+function t12(d){
+ return new Intl.DateTimeFormat('en-US',{
+   hour:'numeric',minute:'2-digit',hour12:true
+ }).format(d);
+}
+
+function clock(){
+ const n=new Date();
+
+ document.getElementById('clock').textContent = t12(n);
+
+ document.getElementById('day').textContent =
+  new Intl.DateTimeFormat('en-US',{weekday:'long'}).format(n);
+
+ document.getElementById('date').textContent =
+  new Intl.DateTimeFormat('en-US',{
+    year:'numeric',
+    month:'long',
+    day:'numeric'
+  }).format(n);
+}
+
+function makeTime(str,offset=0){
+ const [h,m]=str.split(':').map(Number);
+ const d=new Date();
+ d.setDate(d.getDate()+offset);
+ d.setHours(h,m,0,0);
+ return d;
+}
+
+function lerp(a,b,t){
+ return a + (b - a) * t;
+}
+
+function bgColor(p){
+ const t = p * p;
+
+ const r = Math.floor(lerp(248, 239, t));
+ const g = Math.floor(lerp(250, 68, t));
+ const b = Math.floor(lerp(252, 68, t));
+
+ return `rgb(${r},${g},${b})`;
+}
+
+async function getTimes(){
+ const cached=localStorage.getItem(key());
+ if(cached) return JSON.parse(cached);
+
+ const r=await fetch(
+   `https://api.aladhan.com/v1/timings?latitude=${LAT}&longitude=${LNG}&method=2`
+ );
+ const j=await r.json();
+
+ const data={
+   Fajr:j.data.timings.Fajr,
+   Sunrise:j.data.timings.Sunrise,
+   Dhuhr:j.data.timings.Dhuhr,
+   Asr:j.data.timings.Asr,
+   Maghrib:j.data.timings.Maghrib,
+   Isha:j.data.timings.Isha
+ };
+
+ localStorage.setItem(key(),JSON.stringify(data));
+ return data;
+}
+
+function render(data){
+ const now=new Date();
+
+ const windows=[
+  {name:'Fajr',start:makeTime(data.Fajr),end:makeTime(data.Sunrise)},
+  {name:'Dhuhr',start:makeTime(data.Dhuhr),end:makeTime(data.Asr)},
+  {name:'Asr',start:makeTime(data.Asr),end:makeTime(data.Maghrib)},
+  {name:'Maghrib',start:makeTime(data.Maghrib),end:makeTime(data.Isha)},
+  {name:'Isha',start:makeTime(data.Isha),end:makeTime(data.Fajr,1)}
+ ];
+
+ let active=null;
+ let next=null;
+
+ for(const w of windows){
+   if(now>=w.start && now<w.end){
+     active=w;
+     break;
+   }
+ }
+
+ if(!active){
+   next=windows.find(x=>now<x.start)||windows[0];
+ }
+
+ const root=document.getElementById('prayers');
+ root.innerHTML='';
+
+ windows.forEach(w=>{
+
+   const highlight=(active&&active.name===w.name)||(!active&&next.name===w.name);
+
+   let extra='';
+
+   if(active&&active.name===w.name){
+      const p=(now-w.start)/(w.end-w.start);
+
+      const rem=Math.floor((w.end-now)/60000);
+
+      document.body.style.background = bgColor(p);
+
+      if(p > 0.7){
+        document.body.style.animation = "pulseUrgency 2s infinite";
+      } else {
+        document.body.style.animation = "bg 40s ease infinite";
+      }
+
+      extra=`
+      <div class="hero">${Math.floor(rem/60)}h ${rem%60}m remaining</div>
+      <div class="bar">
+       <div class="fill" style="width:${p*100}%"></div>
+       <div class="dot" style="left:${p*100}%"></div>
+      </div>`;
+   }
+
+   if(!active && next.name===w.name){
+      const rem=Math.floor((w.start-now)/60000);
+      extra=`
+      <div class="hero">${Math.floor(rem/60)}h ${rem%60}m until start</div>`;
+   }
+
+   root.innerHTML+=`
+   <div class="card ${highlight?'active':''}">
+    <div class="name">${w.name}</div>
+    <div class="range">${t12(w.start)} → ${t12(w.end)}</div>
+    ${extra}
+   </div>`;
+ });
+
+ const sunrise=makeTime(data.Sunrise);
+ const dhuhr=makeTime(data.Dhuhr);
+ const maghrib=makeTime(data.Maghrib);
+
+ document.getElementById('restricted').innerHTML=`
+ <div class="card">Sunrise<br>${t12(sunrise)} → ${t12(new Date(sunrise.getTime()+15*60000))}</div>
+ <div class="card">Zenith<br>${t12(new Date(dhuhr.getTime()-3*60000))} → ${t12(dhuhr)}</div>
+ <div class="card">Sunset<br>${t12(new Date(maghrib.getTime()-15*60000))} → ${t12(maghrib)}</div>`;
+}
+
+(async()=>{
+ clock();
+ setInterval(clock,1000);
+
+ try{
+   const data=await getTimes();
+   render(data);
+   setInterval(()=>render(data),60000);
+ }catch(e){
+   document.body.insertAdjacentHTML('beforeend',
+   '<div class="card">Could not download prayer times from Aladhan.</div>');
+ }
+})();
+</script>
+
+</body>
+</html>
