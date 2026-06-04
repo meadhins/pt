@@ -130,9 +130,7 @@ function clock(){
   document.getElementById('clock').textContent = t12(n);
 
   document.getElementById('day').textContent =
-    new Intl.DateTimeFormat('en-US',{
-      weekday:'long'
-    }).format(n);
+    new Intl.DateTimeFormat('en-US',{weekday:'long'}).format(n);
 
   document.getElementById('date').textContent =
     new Intl.DateTimeFormat('en-US',{
@@ -142,24 +140,19 @@ function clock(){
     }).format(n);
 }
 
-function makeTime(str,offset=0){
-  const [h,m] = str.split(':').map(Number);
-
-  const d = new Date();
-
+// FIXED: stable date base handling
+function makeTime(str, offset = 0, base = new Date()){
+  const [h, m] = str.split(':').map(Number);
+  const d = new Date(base);
   d.setDate(d.getDate() + offset);
-  d.setHours(h,m,0,0);
-
+  d.setHours(h, m, 0, 0);
   return d;
 }
 
 async function getTimes(){
 
   const cached = localStorage.getItem(key());
-
-  if(cached){
-    return JSON.parse(cached);
-  }
+  if(cached) return JSON.parse(cached);
 
   const r = await fetch(
     `https://api.aladhan.com/v1/timings?latitude=${LAT}&longitude=${LNG}&method=2`
@@ -177,64 +170,43 @@ async function getTimes(){
   };
 
   localStorage.setItem(key(),JSON.stringify(data));
-
   return data;
 }
 
 function render(data){
 
   const now = new Date();
+  const base = new Date();
 
   const windows = [
-    {
-      name:'Fajr',
-      start:makeTime(data.Fajr),
-      end:makeTime(data.Sunrise)
-    },
-    {
-      name:'Dhuhr',
-      start:makeTime(data.Dhuhr),
-      end:makeTime(data.Asr)
-    },
-    {
-      name:'Asr',
-      start:makeTime(data.Asr),
-      end:makeTime(data.Maghrib)
-    },
-    {
-      name:'Maghrib',
-      start:makeTime(data.Maghrib),
-      end:makeTime(data.Isha)
-    },
-    {
-      name:'Isha',
-      start:makeTime(data.Isha),
-      end:makeTime(data.Fajr,1)
-    }
+    { name:'Fajr',    start:makeTime(data.Fajr,0,base),    end:makeTime(data.Sunrise,0,base) },
+    { name:'Dhuhr',   start:makeTime(data.Dhuhr,0,base),   end:makeTime(data.Asr,0,base) },
+    { name:'Asr',     start:makeTime(data.Asr,0,base),     end:makeTime(data.Maghrib,0,base) },
+    { name:'Maghrib', start:makeTime(data.Maghrib,0,base), end:makeTime(data.Isha,0,base) },
+    { name:'Isha',    start:makeTime(data.Isha,0,base),    end:makeTime(data.Fajr,1,base) }
   ];
 
   let active = null;
   let next = null;
 
-  // Find active prayer
+  function inWindow(n, s, e){
+    return n >= s && n < e;
+  }
+
+  // find active (midnight-safe)
   for(const w of windows){
-    if(now >= w.start && now < w.end){
+    if(inWindow(now, w.start, w.end)){
       active = w;
       break;
     }
   }
 
-  // Only determine next prayer if nothing is active
+  // next only if no active
   if(!active){
-    next = windows.find(w => now < w.start);
-
-    if(!next){
-      next = windows[0];
-    }
+    next = windows.find(w => w.start > now) || windows[0];
   }
 
   const root = document.getElementById('prayers');
-
   root.innerHTML = '';
 
   windows.forEach(w => {
@@ -248,94 +220,76 @@ function render(data){
     if(active && active.name === w.name){
 
       const p = (now - w.start) / (w.end - w.start);
-
-      const rem = Math.floor(
-        (w.end - now) / 60000
-      );
+      const rem = Math.floor((w.end - now) / 60000);
 
       extra = `
-      <div class="hero">
-        ${Math.floor(rem/60)}h ${rem%60}m remaining
-      </div>
+        <div class="hero">
+          ${Math.floor(rem/60)}h ${rem%60}m remaining
+        </div>
 
-      <div class="bar">
-        <div class="fill" style="width:${p*100}%"></div>
-        <div class="dot" style="left:${p*100}%"></div>
-      </div>`;
+        <div class="bar">
+          <div class="fill" style="width:${p*100}%"></div>
+          <div class="dot" style="left:${p*100}%"></div>
+        </div>
+      `;
     }
 
     if(!active && next && next.name === w.name){
 
-      const rem = Math.floor(
-        (w.start - now) / 60000
-      );
+      const rem = Math.floor((w.start - now) / 60000);
 
       extra = `
-      <div class="hero">
-        ${Math.floor(rem/60)}h ${rem%60}m until start
-      </div>`;
+        <div class="hero">
+          ${Math.floor(rem/60)}h ${rem%60}m until start
+        </div>
+      `;
     }
 
     root.innerHTML += `
-    <div class="card ${highlight ? 'active' : ''}">
-      <div class="name">${w.name}</div>
-      <div class="range">
-        ${t12(w.start)} → ${t12(w.end)}
+      <div class="card ${highlight ? 'active' : ''}">
+        <div class="name">${w.name}</div>
+        <div class="range">${t12(w.start)} → ${t12(w.end)}</div>
+        ${extra}
       </div>
-      ${extra}
-    </div>`;
+    `;
   });
 
-  const sunrise = makeTime(data.Sunrise);
-  const dhuhr = makeTime(data.Dhuhr);
-  const maghrib = makeTime(data.Maghrib);
+  const sunrise = makeTime(data.Sunrise,0,base);
+  const dhuhr = makeTime(data.Dhuhr,0,base);
+  const maghrib = makeTime(data.Maghrib,0,base);
 
   document.getElementById('restricted').innerHTML = `
     <div class="card">
       Sunrise<br>
-      ${t12(sunrise)}
-      →
-      ${t12(new Date(sunrise.getTime()+15*60000))}
+      ${t12(sunrise)} → ${t12(new Date(sunrise.getTime()+15*60000))}
     </div>
 
     <div class="card">
       Zenith<br>
-      ${t12(new Date(dhuhr.getTime()-3*60000))}
-      →
-      ${t12(dhuhr)}
+      ${t12(new Date(dhuhr.getTime()-3*60000))} → ${t12(dhuhr)}
     </div>
 
     <div class="card">
       Sunset<br>
-      ${t12(new Date(maghrib.getTime()-15*60000))}
-      →
-      ${t12(maghrib)}
-    </div>`;
+      ${t12(new Date(maghrib.getTime()-15*60000))} → ${t12(maghrib)}
+    </div>
+  `;
 }
 
 (async()=>{
-
   clock();
   setInterval(clock,1000);
 
   try{
-
     const data = await getTimes();
-
     render(data);
-
-    setInterval(()=>{
-      render(data);
-    },60000);
-
+    setInterval(()=>render(data),60000);
   }catch(e){
-
     document.body.insertAdjacentHTML(
       'beforeend',
-      '<div class="card">Could not download prayer times from Aladhan.</div>'
+      '<div class="card">Could not load prayer times.</div>'
     );
   }
-
 })();
 </script>
 
