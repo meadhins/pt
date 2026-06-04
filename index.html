@@ -193,7 +193,26 @@ function render(windows){
     `;
   });
 }
+const sunrise = windows.find(w => w.name === "Fajr")?.end;
+const dhuhr = windows.find(w => w.name === "Dhuhr")?.start;
+const maghrib = windows.find(w => w.name === "Maghrib")?.start;
 
+document.getElementById('restricted').innerHTML = `
+  <div class="card">
+    Sunrise<br>
+    ${t12(sunrise)} → ${t12(new Date(sunrise.getTime()+15*60000))}
+  </div>
+
+  <div class="card">
+    Zenith<br>
+    ${t12(new Date(dhuhr.getTime()-3*60000))} → ${t12(dhuhr)}
+  </div>
+
+  <div class="card">
+    Sunset<br>
+    ${t12(new Date(maghrib.getTime()-15*60000))} → ${t12(maghrib)}
+  </div>
+`;
 (async()=>{
   clock();
   setInterval(clock,1000);
