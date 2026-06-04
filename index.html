@@ -9,24 +9,20 @@
 
 <style>
 body{
-  margin:0;padding:20px;max-width:700px;margin:auto;
+  margin:0;
+  padding:20px;
+  max-width:700px;
+  margin:auto;
   font-family:system-ui,sans-serif;
   background:linear-gradient(135deg,#f8fafc,#eef6ff,#f8fafc);
   background-size:400% 400%;
   animation:bg 40s ease infinite;
   color:#0f172a;
-  transition: background 0.8s ease;
 }
 
 @keyframes bg{
   from{background-position:0 50%}
   to{background-position:100% 50%}
-}
-
-@keyframes pulseUrgency {
-  0%   { filter: brightness(1); }
-  50%  { filter: brightness(1.08); }
-  100% { filter: brightness(1); }
 }
 
 .time{
@@ -113,170 +109,233 @@ body{
 <div id="restricted"></div>
 
 <script>
-const LAT=23.8103;
-const LNG=90.4125;
+const LAT = 23.8103;
+const LNG = 90.4125;
 
 function key(){
- return "prayerTimes_"+new Date().toISOString().split('T')[0];
+  return "prayerTimes_" + new Date().toISOString().split('T')[0];
 }
 
 function t12(d){
- return new Intl.DateTimeFormat('en-US',{
-   hour:'numeric',minute:'2-digit',hour12:true
- }).format(d);
+  return new Intl.DateTimeFormat('en-US',{
+    hour:'numeric',
+    minute:'2-digit',
+    hour12:true
+  }).format(d);
 }
 
 function clock(){
- const n=new Date();
+  const n = new Date();
 
- document.getElementById('clock').textContent = t12(n);
+  document.getElementById('clock').textContent = t12(n);
 
- document.getElementById('day').textContent =
-  new Intl.DateTimeFormat('en-US',{weekday:'long'}).format(n);
+  document.getElementById('day').textContent =
+    new Intl.DateTimeFormat('en-US',{
+      weekday:'long'
+    }).format(n);
 
- document.getElementById('date').textContent =
-  new Intl.DateTimeFormat('en-US',{
-    year:'numeric',
-    month:'long',
-    day:'numeric'
-  }).format(n);
+  document.getElementById('date').textContent =
+    new Intl.DateTimeFormat('en-US',{
+      year:'numeric',
+      month:'long',
+      day:'numeric'
+    }).format(n);
 }
 
 function makeTime(str,offset=0){
- const [h,m]=str.split(':').map(Number);
- const d=new Date();
- d.setDate(d.getDate()+offset);
- d.setHours(h,m,0,0);
- return d;
-}
+  const [h,m] = str.split(':').map(Number);
 
-function lerp(a,b,t){
- return a + (b - a) * t;
-}
+  const d = new Date();
 
-function bgColor(p){
- const t = p * p;
+  d.setDate(d.getDate() + offset);
+  d.setHours(h,m,0,0);
 
- const r = Math.floor(lerp(248, 239, t));
- const g = Math.floor(lerp(250, 68, t));
- const b = Math.floor(lerp(252, 68, t));
-
- return `rgb(${r},${g},${b})`;
+  return d;
 }
 
 async function getTimes(){
- const cached=localStorage.getItem(key());
- if(cached) return JSON.parse(cached);
 
- const r=await fetch(
-   `https://api.aladhan.com/v1/timings?latitude=${LAT}&longitude=${LNG}&method=2`
- );
- const j=await r.json();
+  const cached = localStorage.getItem(key());
 
- const data={
-   Fajr:j.data.timings.Fajr,
-   Sunrise:j.data.timings.Sunrise,
-   Dhuhr:j.data.timings.Dhuhr,
-   Asr:j.data.timings.Asr,
-   Maghrib:j.data.timings.Maghrib,
-   Isha:j.data.timings.Isha
- };
+  if(cached){
+    return JSON.parse(cached);
+  }
 
- localStorage.setItem(key(),JSON.stringify(data));
- return data;
+  const r = await fetch(
+    `https://api.aladhan.com/v1/timings?latitude=${LAT}&longitude=${LNG}&method=2`
+  );
+
+  const j = await r.json();
+
+  const data = {
+    Fajr:j.data.timings.Fajr,
+    Sunrise:j.data.timings.Sunrise,
+    Dhuhr:j.data.timings.Dhuhr,
+    Asr:j.data.timings.Asr,
+    Maghrib:j.data.timings.Maghrib,
+    Isha:j.data.timings.Isha
+  };
+
+  localStorage.setItem(key(),JSON.stringify(data));
+
+  return data;
 }
 
 function render(data){
- const now=new Date();
 
- const windows=[
-  {name:'Fajr',start:makeTime(data.Fajr),end:makeTime(data.Sunrise)},
-  {name:'Dhuhr',start:makeTime(data.Dhuhr),end:makeTime(data.Asr)},
-  {name:'Asr',start:makeTime(data.Asr),end:makeTime(data.Maghrib)},
-  {name:'Maghrib',start:makeTime(data.Maghrib),end:makeTime(data.Isha)},
-  {name:'Isha',start:makeTime(data.Isha),end:makeTime(data.Fajr,1)}
- ];
+  const now = new Date();
 
- let active=null;
- let next=null;
+  const windows = [
+    {
+      name:'Fajr',
+      start:makeTime(data.Fajr),
+      end:makeTime(data.Sunrise)
+    },
+    {
+      name:'Dhuhr',
+      start:makeTime(data.Dhuhr),
+      end:makeTime(data.Asr)
+    },
+    {
+      name:'Asr',
+      start:makeTime(data.Asr),
+      end:makeTime(data.Maghrib)
+    },
+    {
+      name:'Maghrib',
+      start:makeTime(data.Maghrib),
+      end:makeTime(data.Isha)
+    },
+    {
+      name:'Isha',
+      start:makeTime(data.Isha),
+      end:makeTime(data.Fajr,1)
+    }
+  ];
 
- for(const w of windows){
-   if(now>=w.start && now<w.end){
-     active=w;
-     break;
-   }
- }
+  let active = null;
+  let next = null;
 
- if(!active){
-   next=windows.find(x=>now<x.start)||windows[0];
- }
+  // Find active prayer
+  for(const w of windows){
+    if(now >= w.start && now < w.end){
+      active = w;
+      break;
+    }
+  }
 
- const root=document.getElementById('prayers');
- root.innerHTML='';
+  // Only determine next prayer if nothing is active
+  if(!active){
+    next = windows.find(w => now < w.start);
 
- windows.forEach(w=>{
+    if(!next){
+      next = windows[0];
+    }
+  }
 
-   const highlight=(active&&active.name===w.name)||(!active&&next.name===w.name);
+  const root = document.getElementById('prayers');
 
-   let extra='';
+  root.innerHTML = '';
 
-   if(active&&active.name===w.name){
-      const p=(now-w.start)/(w.end-w.start);
+  windows.forEach(w => {
 
-      const rem=Math.floor((w.end-now)/60000);
+    const highlight =
+      (active && active.name === w.name) ||
+      (!active && next && next.name === w.name);
 
-      document.body.style.background = bgColor(p);
+    let extra = '';
 
-      if(p > 0.7){
-        document.body.style.animation = "pulseUrgency 2s infinite";
-      } else {
-        document.body.style.animation = "bg 40s ease infinite";
-      }
+    if(active && active.name === w.name){
 
-      extra=`
-      <div class="hero">${Math.floor(rem/60)}h ${rem%60}m remaining</div>
+      const p = (now - w.start) / (w.end - w.start);
+
+      const rem = Math.floor(
+        (w.end - now) / 60000
+      );
+
+      extra = `
+      <div class="hero">
+        ${Math.floor(rem/60)}h ${rem%60}m remaining
+      </div>
+
       <div class="bar">
-       <div class="fill" style="width:${p*100}%"></div>
-       <div class="dot" style="left:${p*100}%"></div>
+        <div class="fill" style="width:${p*100}%"></div>
+        <div class="dot" style="left:${p*100}%"></div>
       </div>`;
-   }
+    }
 
-   if(!active && next.name===w.name){
-      const rem=Math.floor((w.start-now)/60000);
-      extra=`
-      <div class="hero">${Math.floor(rem/60)}h ${rem%60}m until start</div>`;
-   }
+    if(!active && next && next.name === w.name){
 
-   root.innerHTML+=`
-   <div class="card ${highlight?'active':''}">
-    <div class="name">${w.name}</div>
-    <div class="range">${t12(w.start)} → ${t12(w.end)}</div>
-    ${extra}
-   </div>`;
- });
+      const rem = Math.floor(
+        (w.start - now) / 60000
+      );
 
- const sunrise=makeTime(data.Sunrise);
- const dhuhr=makeTime(data.Dhuhr);
- const maghrib=makeTime(data.Maghrib);
+      extra = `
+      <div class="hero">
+        ${Math.floor(rem/60)}h ${rem%60}m until start
+      </div>`;
+    }
 
- document.getElementById('restricted').innerHTML=`
- <div class="card">Sunrise<br>${t12(sunrise)} → ${t12(new Date(sunrise.getTime()+15*60000))}</div>
- <div class="card">Zenith<br>${t12(new Date(dhuhr.getTime()-3*60000))} → ${t12(dhuhr)}</div>
- <div class="card">Sunset<br>${t12(new Date(maghrib.getTime()-15*60000))} → ${t12(maghrib)}</div>`;
+    root.innerHTML += `
+    <div class="card ${highlight ? 'active' : ''}">
+      <div class="name">${w.name}</div>
+      <div class="range">
+        ${t12(w.start)} → ${t12(w.end)}
+      </div>
+      ${extra}
+    </div>`;
+  });
+
+  const sunrise = makeTime(data.Sunrise);
+  const dhuhr = makeTime(data.Dhuhr);
+  const maghrib = makeTime(data.Maghrib);
+
+  document.getElementById('restricted').innerHTML = `
+    <div class="card">
+      Sunrise<br>
+      ${t12(sunrise)}
+      →
+      ${t12(new Date(sunrise.getTime()+15*60000))}
+    </div>
+
+    <div class="card">
+      Zenith<br>
+      ${t12(new Date(dhuhr.getTime()-3*60000))}
+      →
+      ${t12(dhuhr)}
+    </div>
+
+    <div class="card">
+      Sunset<br>
+      ${t12(new Date(maghrib.getTime()-15*60000))}
+      →
+      ${t12(maghrib)}
+    </div>`;
 }
 
 (async()=>{
- clock();
- setInterval(clock,1000);
 
- try{
-   const data=await getTimes();
-   render(data);
-   setInterval(()=>render(data),60000);
- }catch(e){
-   document.body.insertAdjacentHTML('beforeend',
-   '<div class="card">Could not download prayer times from Aladhan.</div>');
- }
+  clock();
+  setInterval(clock,1000);
+
+  try{
+
+    const data = await getTimes();
+
+    render(data);
+
+    setInterval(()=>{
+      render(data);
+    },60000);
+
+  }catch(e){
+
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      '<div class="card">Could not download prayer times from Aladhan.</div>'
+    );
+  }
+
 })();
 </script>
 
