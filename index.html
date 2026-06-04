@@ -12,8 +12,15 @@ body{
   max-width:700px;
   margin:auto;
   font-family:system-ui,sans-serif;
-  background:#f8fafc;
+  background:linear-gradient(135deg,#f8fafc,#eef6ff,#f8fafc);
+  background-size:400% 400%;
+  animation:bg 40s ease infinite;
   color:#0f172a;
+}
+
+@keyframes bg{
+  from{background-position:0 50%}
+  to{background-position:100% 50%}
 }
 
 .time{font-size:3rem;font-weight:700;}
@@ -21,10 +28,10 @@ body{
 
 .card{
   background:#fff;
-  border-radius:18px;
-  padding:14px;
-  margin:10px 0;
-  box-shadow:0 6px 20px rgba(0,0,0,.06);
+  border-radius:24px;
+  padding:16px;
+  margin:12px 0;
+  box-shadow:0 8px 30px rgba(0,0,0,.06);
 }
 
 .active{border:2px solid #2563eb;}
@@ -32,20 +39,38 @@ body{
 .name{font-weight:700;letter-spacing:.08em;}
 .range{color:#64748b;margin-top:4px;}
 
-.hero{margin-top:10px;font-weight:600;}
+.hero{margin-top:12px;font-size:1.1rem;font-weight:600;}
 
 .bar{
   height:8px;
   background:#e5e7eb;
   border-radius:99px;
   position:relative;
-  margin-top:10px;
+  margin-top:12px;
 }
 
-.fill{height:100%;background:#2563eb;border-radius:99px;}
+.fill{
+  height:100%;
+  background:#2563eb;
+  border-radius:99px;
+}
+
 .dot{
-  width:14px;height:14px;background:#2563eb;border-radius:50%;
-  position:absolute;top:50%;transform:translate(-50%,-50%);
+  width:16px;
+  height:16px;
+  background:#2563eb;
+  border-radius:50%;
+  position:absolute;
+  top:50%;
+  transform:translate(-50%,-50%);
+  box-shadow:0 0 0 4px rgba(37,99,235,.15);
+}
+
+.section{
+  margin-top:24px;
+  color:#64748b;
+  text-transform:uppercase;
+  font-size:.85rem;
 }
 </style>
 </head>
@@ -58,120 +83,127 @@ body{
 
 <div id="prayers"></div>
 
+<div class="section">Restricted Times</div>
+<div id="restricted"></div>
+
 <script>
-const LAT=23.8103, LNG=90.4125;
+const LAT = 23.8103;
+const LNG = 90.4125;
+
+function key(){
+  return "prayerTimes_" + new Date().toISOString().split('T')[0];
+}
 
 function t12(d){
   return new Intl.DateTimeFormat('en-US',{
-    hour:'numeric',minute:'2-digit',hour12:true
+    hour:'numeric',
+    minute:'2-digit',
+    hour12:true
   }).format(d);
 }
 
 function clock(){
-  const n=new Date();
-  document.getElementById('clock').textContent=t12(n);
-  document.getElementById('day').textContent=
+  const n = new Date();
+
+  document.getElementById('clock').textContent = t12(n);
+
+  document.getElementById('day').textContent =
     new Intl.DateTimeFormat('en-US',{weekday:'long'}).format(n);
-  document.getElementById('date').textContent=
-    new Intl.DateTimeFormat('en-US',{year:'numeric',month:'long',day:'numeric'}).format(n);
+
+  document.getElementById('date').textContent =
+    new Intl.DateTimeFormat('en-US',{
+      year:'numeric',
+      month:'long',
+      day:'numeric'
+    }).format(n);
 }
 
-function mins(d){ return d.getTime()/60000; }
+// build time safely
+function makeTime(str, offset = 0, base = new Date()){
+  const [h,m] = str.split(':').map(Number);
+  const d = new Date(base);
+  d.setDate(d.getDate() + offset);
+  d.setHours(h,m,0,0);
+  return d;
+}
 
 async function getTimes(){
-  const r=await fetch(
+
+  const cached = localStorage.getItem(key());
+  if(cached) return JSON.parse(cached);
+
+  const r = await fetch(
     `https://api.aladhan.com/v1/timings?latitude=${LAT}&longitude=${LNG}&method=2`
   );
-  const j=await r.json();
-  return j.data.timings;
+
+  const j = await r.json();
+
+  const data = j.data.timings;
+
+  localStorage.setItem(key(), JSON.stringify(data));
+  return data;
 }
 
-function buildCycle(t){
+function render(data){
 
   const now = new Date();
+  const base = new Date();
 
-  const Fajr = new Date();
-  const [fh,fm]=t.Fajr.split(':').map(Number);
-  Fajr.setHours(fh,fm,0,0);
-
-  const Sunrise = new Date();
-  const [sh,sm]=t.Sunrise.split(':').map(Number);
-  Sunrise.setHours(sh,sm,0,0);
-
-  const Dhuhr = new Date();
-  const [dh,dm]=t.Dhuhr.split(':').map(Number);
-  Dhuhr.setHours(dh,dm,0,0);
-
-  const Asr = new Date();
-  const [ah,am]=t.Asr.split(':').map(Number);
-  Asr.setHours(ah,am,0,0);
-
-  const Maghrib = new Date();
-  const [mh,mm]=t.Maghrib.split(':').map(Number);
-  Maghrib.setHours(mh,mm,0,0);
-
-  const Isha = new Date();
-  const [ih,im]=t.Isha.split(':').map(Number);
-  Isha.setHours(ih,im,0,0);
-
-  // 🔥 KEY IDEA: if we're after midnight but before Fajr,
-  // treat Fajr as tomorrow anchor
-  let cycleOffset = 0;
-  if(now < Fajr){
-    cycleOffset = -1;
-  }
-
-  const addDay = (d, offset)=>{
-    const x=new Date(d);
-    x.setDate(x.getDate()+offset);
-    return x;
-  };
-
-  const windows = [
-    {name:"Fajr",start:addDay(Fajr,cycleOffset),end:addDay(Sunrise,cycleOffset)},
-    {name:"Dhuhr",start:addDay(Dhuhr,cycleOffset),end:addDay(Asr,cycleOffset)},
-    {name:"Asr",start:addDay(Asr,cycleOffset),end:addDay(Maghrib,cycleOffset)},
-    {name:"Maghrib",start:addDay(Maghrib,cycleOffset),end:addDay(Isha,cycleOffset)},
-    {name:"Isha",start:addDay(Isha,cycleOffset),end:addDay(Fajr,cycleOffset+1)}
+  let windows = [
+    { name:'Fajr',    start:makeTime(data.Fajr,0,base),    end:makeTime(data.Sunrise,0,base) },
+    { name:'Dhuhr',   start:makeTime(data.Dhuhr,0,base),   end:makeTime(data.Asr,0,base) },
+    { name:'Asr',     start:makeTime(data.Asr,0,base),     end:makeTime(data.Maghrib,0,base) },
+    { name:'Maghrib', start:makeTime(data.Maghrib,0,base), end:makeTime(data.Isha,0,base) },
+    { name:'Isha',    start:makeTime(data.Isha,0,base),    end:makeTime(data.Fajr,1,base) }
   ];
 
-  return windows;
-}
+  // 🔥 FIX: proper overnight handling
+  const fixed = windows.map(w => {
+    let start = w.start;
+    let end = w.end;
 
-function render(windows){
+    if (w.name === "Isha" && end <= start) {
+      end = new Date(end.getTime() + 86400000);
+    }
 
-  const now=new Date();
+    return { ...w, start, end };
+  });
 
-  let active=null,next=null;
+  let active = null;
+  let next = null;
 
-  for(const w of windows){
-    if(now>=w.start && now<w.end){
-      active=w;
+  for (const w of fixed) {
+    if (now >= w.start && now < w.end) {
+      active = w;
       break;
     }
   }
 
-  if(!active){
-    next=windows.find(w=>w.start>now)||windows[0];
+  if (!active) {
+    next = fixed.find(w => w.start > now) || fixed[0];
   }
 
-  const root=document.getElementById('prayers');
-  root.innerHTML="";
+  const root = document.getElementById('prayers');
+  root.innerHTML = '';
 
-  windows.forEach(w=>{
+  fixed.forEach(w => {
 
-    const highlight=(active&&active.name===w.name)||
-                     (!active&&next&&next.name===w.name);
+    const highlight =
+      (active && active.name === w.name) ||
+      (!active && next && next.name === w.name);
 
-    let extra="";
+    let extra = '';
 
-    if(active&&active.name===w.name){
+    if (active && active.name === w.name) {
 
-      const p=(now-w.start)/(w.end-w.start);
-      const rem=Math.floor((w.end-now)/60000);
+      const p = (now - w.start) / (w.end - w.start);
+      const rem = Math.floor((w.end - now) / 60000);
 
-      extra=`
-        <div class="hero">${Math.floor(rem/60)}h ${rem%60}m remaining</div>
+      extra = `
+        <div class="hero">
+          ${Math.floor(rem/60)}h ${rem%60}m remaining
+        </div>
+
         <div class="bar">
           <div class="fill" style="width:${p*100}%"></div>
           <div class="dot" style="left:${p*100}%"></div>
@@ -179,49 +211,56 @@ function render(windows){
       `;
     }
 
-    if(!active&&next&&next.name===w.name){
-      const rem=Math.floor((w.start-now)/60000);
-      extra=`<div class="hero">${Math.floor(rem/60)}h ${rem%60}m until start</div>`;
+    if (!active && next && next.name === w.name) {
+
+      const rem = Math.floor((w.start - now) / 60000);
+
+      extra = `
+        <div class="hero">
+          ${Math.floor(rem/60)}h ${rem%60}m until start
+        </div>
+      `;
     }
 
-    root.innerHTML+=`
-      <div class="card ${highlight?'active':''}">
+    root.innerHTML += `
+      <div class="card ${highlight ? 'active' : ''}">
         <div class="name">${w.name}</div>
         <div class="range">${t12(w.start)} → ${t12(w.end)}</div>
         ${extra}
       </div>
     `;
   });
+
+  // 🔥 Restricted times (restored)
+  const sunrise = fixed.find(w => w.name === "Fajr")?.end;
+  const dhuhr = fixed.find(w => w.name === "Dhuhr")?.start;
+  const maghrib = fixed.find(w => w.name === "Maghrib")?.start;
+
+  document.getElementById('restricted').innerHTML = `
+    <div class="card">
+      Sunrise<br>
+      ${t12(sunrise)} → ${t12(new Date(sunrise.getTime()+15*60000))}
+    </div>
+
+    <div class="card">
+      Zenith<br>
+      ${t12(new Date(dhuhr.getTime()-3*60000))} → ${t12(dhuhr)}
+    </div>
+
+    <div class="card">
+      Sunset<br>
+      ${t12(new Date(maghrib.getTime()-15*60000))} → ${t12(maghrib)}
+    </div>
+  `;
 }
-const sunrise = windows.find(w => w.name === "Fajr")?.end;
-const dhuhr = windows.find(w => w.name === "Dhuhr")?.start;
-const maghrib = windows.find(w => w.name === "Maghrib")?.start;
 
-document.getElementById('restricted').innerHTML = `
-  <div class="card">
-    Sunrise<br>
-    ${t12(sunrise)} → ${t12(new Date(sunrise.getTime()+15*60000))}
-  </div>
-
-  <div class="card">
-    Zenith<br>
-    ${t12(new Date(dhuhr.getTime()-3*60000))} → ${t12(dhuhr)}
-  </div>
-
-  <div class="card">
-    Sunset<br>
-    ${t12(new Date(maghrib.getTime()-15*60000))} → ${t12(maghrib)}
-  </div>
-`;
 (async()=>{
   clock();
   setInterval(clock,1000);
 
-  const t=await getTimes();
-  const windows=buildCycle(t);
-
-  render(windows);
-  setInterval(()=>render(windows),60000);
+  const data = await getTimes();
+  render(data);
+  setInterval(()=>render(data),60000);
 })();
 </script>
 
