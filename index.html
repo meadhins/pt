@@ -21,7 +21,7 @@ body{
 
 .card{
   background:#fff;
-  border-radius:20px;
+  border-radius:18px;
   padding:14px;
   margin:10px 0;
   box-shadow:0 6px 20px rgba(0,0,0,.06);
@@ -42,11 +42,7 @@ body{
   margin-top:10px;
 }
 
-.fill{
-  height:100%;
-  background:#2563eb;
-  border-radius:99px;
-}
+.fill{height:100%;background:#2563eb;border-radius:99px;}
 
 .dot{
   width:14px;height:14px;
@@ -55,13 +51,6 @@ body{
   position:absolute;
   top:50%;
   transform:translate(-50%,-50%);
-}
-
-.section{
-  margin-top:20px;
-  color:#64748b;
-  font-size:.85rem;
-  text-transform:uppercase;
 }
 </style>
 </head>
@@ -73,12 +62,11 @@ body{
 <div id="date" class="day"></div>
 
 <div id="prayers"></div>
-<div class="section">Restricted Times</div>
 <div id="restricted"></div>
 
 <script>
-const LAT = 23.8103;
-const LNG = 90.4125;
+const LAT=23.8103;
+const LNG=90.4125;
 
 function t12(d){
   return new Intl.DateTimeFormat('en-US',{
@@ -95,14 +83,6 @@ function clock(){
     new Intl.DateTimeFormat('en-US',{year:'numeric',month:'long',day:'numeric'}).format(n);
 }
 
-function makeTime(str, offset=0, base=new Date()){
-  const [h,m]=str.split(':').map(Number);
-  const d=new Date(base);
-  d.setDate(d.getDate()+offset);
-  d.setHours(h,m,0,0);
-  return d;
-}
-
 async function getTimes(){
   const r=await fetch(
     `https://api.aladhan.com/v1/timings?latitude=${LAT}&longitude=${LNG}&method=2`
@@ -111,29 +91,38 @@ async function getTimes(){
   return j.data.timings;
 }
 
+// build absolute datetime
+function dt(str, dayOffset=0){
+  const [h,m]=str.split(':').map(Number);
+  const d=new Date();
+  d.setDate(d.getDate()+dayOffset);
+  d.setHours(h,m,0,0);
+  return d;
+}
+
 function render(t){
 
   const now=new Date();
-  const base=new Date();
 
+  // 🔥 BUILD FULL CONTINUOUS CHAIN (today + tomorrow Fajr)
   const windows=[
-    {name:'Fajr',start:makeTime(t.Fajr,0,base),end:makeTime(t.Sunrise,0,base)},
-    {name:'Dhuhr',start:makeTime(t.Dhuhr,0,base),end:makeTime(t.Asr,0,base)},
-    {name:'Asr',start:makeTime(t.Asr,0,base),end:makeTime(t.Maghrib,0,base)},
-    {name:'Maghrib',start:makeTime(t.Maghrib,0,base),end:makeTime(t.Isha,0,base)},
-    {name:'Isha',start:makeTime(t.Isha,0,base),end:makeTime(t.Fajr,1,base)}
+    {name:'Fajr',start:dt(t.Fajr,0),end:dt(t.Sunrise,0)},
+    {name:'Dhuhr',start:dt(t.Dhuhr,0),end:dt(t.Asr,0)},
+    {name:'Asr',start:dt(t.Asr,0),end:dt(t.Maghrib,0)},
+    {name:'Maghrib',start:dt(t.Maghrib,0),end:dt(t.Isha,0)},
+    {name:'Isha',start:dt(t.Isha,0),end:dt(t.Fajr,1)}
   ];
 
-  let active=windows.find(w=>now>=w.start&&now<w.end)||null;
-  let next=active?null:(windows.find(w=>w.start>now)||windows[0]);
+  let active = windows.find(w => now >= w.start && now < w.end) || null;
+  let next = active ? null : windows.find(w => w.start > now) || windows[0];
 
   const root=document.getElementById('prayers');
   root.innerHTML='';
 
   windows.forEach(w=>{
 
-    const isActive=active&&active.name===w.name;
-    const isNext=!active&&next&&next.name===w.name;
+    const isActive=active && active.name===w.name;
+    const isNext=!active && next && next.name===w.name;
 
     let extra='';
 
@@ -149,6 +138,7 @@ function render(t){
         </div>
       `;
     }
+
     else if(isNext){
       const rem=Math.floor((w.start-now)/60000);
       extra=`<div class="hero">${Math.floor(rem/60)}h ${rem%60}m until start</div>`;
@@ -163,9 +153,10 @@ function render(t){
     `;
   });
 
-  const sunrise=windows[0].end;
-  const dhuhr=windows[1].start;
-  const maghrib=windows[3].start;
+  // restricted times (safe, independent)
+  const sunrise=dt(t.Sunrise,0);
+  const dhuhr=dt(t.Dhuhr,0);
+  const maghrib=dt(t.Maghrib,0);
 
   document.getElementById('restricted').innerHTML=`
     <div class="card">
