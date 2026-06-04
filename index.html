@@ -12,15 +12,8 @@ body{
   max-width:700px;
   margin:auto;
   font-family:system-ui,sans-serif;
-  background:linear-gradient(135deg,#f8fafc,#eef6ff,#f8fafc);
-  background-size:400% 400%;
-  animation:bg 40s ease infinite;
+  background:#f8fafc;
   color:#0f172a;
-}
-
-@keyframes bg{
-  from{background-position:0 50%}
-  to{background-position:100% 50%}
 }
 
 .time{font-size:3rem;font-weight:700;}
@@ -28,10 +21,10 @@ body{
 
 .card{
   background:#fff;
-  border-radius:24px;
-  padding:16px;
-  margin:12px 0;
-  box-shadow:0 8px 30px rgba(0,0,0,.06);
+  border-radius:20px;
+  padding:14px;
+  margin:10px 0;
+  box-shadow:0 6px 20px rgba(0,0,0,.06);
 }
 
 .active{border:2px solid #2563eb;}
@@ -39,14 +32,14 @@ body{
 .name{font-weight:700;letter-spacing:.08em;}
 .range{color:#64748b;margin-top:4px;}
 
-.hero{margin-top:12px;font-size:1.1rem;font-weight:600;}
+.hero{margin-top:10px;font-weight:600;}
 
 .bar{
   height:8px;
   background:#e5e7eb;
   border-radius:99px;
   position:relative;
-  margin-top:12px;
+  margin-top:10px;
 }
 
 .fill{
@@ -56,21 +49,19 @@ body{
 }
 
 .dot{
-  width:16px;
-  height:16px;
+  width:14px;height:14px;
   background:#2563eb;
   border-radius:50%;
   position:absolute;
   top:50%;
   transform:translate(-50%,-50%);
-  box-shadow:0 0 0 4px rgba(37,99,235,.15);
 }
 
 .section{
-  margin-top:24px;
+  margin-top:20px;
   color:#64748b;
-  text-transform:uppercase;
   font-size:.85rem;
+  text-transform:uppercase;
 }
 </style>
 </head>
@@ -82,7 +73,6 @@ body{
 <div id="date" class="day"></div>
 
 <div id="prayers"></div>
-
 <div class="section">Restricted Times</div>
 <div id="restricted"></div>
 
@@ -90,140 +80,82 @@ body{
 const LAT = 23.8103;
 const LNG = 90.4125;
 
-function key(){
-  return "prayerTimes_" + new Date().toISOString().split('T')[0];
-}
-
 function t12(d){
   return new Intl.DateTimeFormat('en-US',{
-    hour:'numeric',
-    minute:'2-digit',
-    hour12:true
+    hour:'numeric',minute:'2-digit',hour12:true
   }).format(d);
 }
 
 function clock(){
-  const n = new Date();
-
-  document.getElementById('clock').textContent = t12(n);
-
-  document.getElementById('day').textContent =
+  const n=new Date();
+  document.getElementById('clock').textContent=t12(n);
+  document.getElementById('day').textContent=
     new Intl.DateTimeFormat('en-US',{weekday:'long'}).format(n);
-
-  document.getElementById('date').textContent =
-    new Intl.DateTimeFormat('en-US',{
-      year:'numeric',
-      month:'long',
-      day:'numeric'
-    }).format(n);
+  document.getElementById('date').textContent=
+    new Intl.DateTimeFormat('en-US',{year:'numeric',month:'long',day:'numeric'}).format(n);
 }
 
-// build time safely
-function makeTime(str, offset = 0, base = new Date()){
-  const [h,m] = str.split(':').map(Number);
-  const d = new Date(base);
-  d.setDate(d.getDate() + offset);
+function makeTime(str, offset=0, base=new Date()){
+  const [h,m]=str.split(':').map(Number);
+  const d=new Date(base);
+  d.setDate(d.getDate()+offset);
   d.setHours(h,m,0,0);
   return d;
 }
 
 async function getTimes(){
-
-  const cached = localStorage.getItem(key());
-  if(cached) return JSON.parse(cached);
-
-  const r = await fetch(
+  const r=await fetch(
     `https://api.aladhan.com/v1/timings?latitude=${LAT}&longitude=${LNG}&method=2`
   );
-
-  const j = await r.json();
-
-  const data = j.data.timings;
-
-  localStorage.setItem(key(), JSON.stringify(data));
-  return data;
+  const j=await r.json();
+  return j.data.timings;
 }
 
-function render(data){
+function render(t){
 
-  const now = new Date();
-  const base = new Date();
+  const now=new Date();
+  const base=new Date();
 
-  let windows = [
-    { name:'Fajr',    start:makeTime(data.Fajr,0,base),    end:makeTime(data.Sunrise,0,base) },
-    { name:'Dhuhr',   start:makeTime(data.Dhuhr,0,base),   end:makeTime(data.Asr,0,base) },
-    { name:'Asr',     start:makeTime(data.Asr,0,base),     end:makeTime(data.Maghrib,0,base) },
-    { name:'Maghrib', start:makeTime(data.Maghrib,0,base), end:makeTime(data.Isha,0,base) },
-    { name:'Isha',    start:makeTime(data.Isha,0,base),    end:makeTime(data.Fajr,1,base) }
+  const windows=[
+    {name:'Fajr',start:makeTime(t.Fajr,0,base),end:makeTime(t.Sunrise,0,base)},
+    {name:'Dhuhr',start:makeTime(t.Dhuhr,0,base),end:makeTime(t.Asr,0,base)},
+    {name:'Asr',start:makeTime(t.Asr,0,base),end:makeTime(t.Maghrib,0,base)},
+    {name:'Maghrib',start:makeTime(t.Maghrib,0,base),end:makeTime(t.Isha,0,base)},
+    {name:'Isha',start:makeTime(t.Isha,0,base),end:makeTime(t.Fajr,1,base)}
   ];
 
-  // 🔥 FIX: proper overnight handling
-  const fixed = windows.map(w => {
-    let start = w.start;
-    let end = w.end;
+  let active=windows.find(w=>now>=w.start&&now<w.end)||null;
+  let next=active?null:(windows.find(w=>w.start>now)||windows[0]);
 
-    if (w.name === "Isha" && end <= start) {
-      end = new Date(end.getTime() + 86400000);
-    }
+  const root=document.getElementById('prayers');
+  root.innerHTML='';
 
-    return { ...w, start, end };
-  });
+  windows.forEach(w=>{
 
-  let active = null;
-  let next = null;
+    const isActive=active&&active.name===w.name;
+    const isNext=!active&&next&&next.name===w.name;
 
-  for (const w of fixed) {
-    if (now >= w.start && now < w.end) {
-      active = w;
-      break;
-    }
-  }
+    let extra='';
 
-  if (!active) {
-    next = fixed.find(w => w.start > now) || fixed[0];
-  }
+    if(isActive){
+      const p=(now-w.start)/(w.end-w.start);
+      const rem=Math.floor((w.end-now)/60000);
 
-  const root = document.getElementById('prayers');
-  root.innerHTML = '';
-
-  fixed.forEach(w => {
-
-    const highlight =
-      (active && active.name === w.name) ||
-      (!active && next && next.name === w.name);
-
-    let extra = '';
-
-    if (active && active.name === w.name) {
-
-      const p = (now - w.start) / (w.end - w.start);
-      const rem = Math.floor((w.end - now) / 60000);
-
-      extra = `
-        <div class="hero">
-          ${Math.floor(rem/60)}h ${rem%60}m remaining
-        </div>
-
+      extra=`
+        <div class="hero">${Math.floor(rem/60)}h ${rem%60}m remaining</div>
         <div class="bar">
           <div class="fill" style="width:${p*100}%"></div>
           <div class="dot" style="left:${p*100}%"></div>
         </div>
       `;
     }
-
-    if (!active && next && next.name === w.name) {
-
-      const rem = Math.floor((w.start - now) / 60000);
-
-      extra = `
-        <div class="hero">
-          ${Math.floor(rem/60)}h ${rem%60}m until start
-        </div>
-      `;
+    else if(isNext){
+      const rem=Math.floor((w.start-now)/60000);
+      extra=`<div class="hero">${Math.floor(rem/60)}h ${rem%60}m until start</div>`;
     }
 
-    root.innerHTML += `
-      <div class="card ${highlight ? 'active' : ''}">
+    root.innerHTML+=`
+      <div class="card ${isActive?'active':''}">
         <div class="name">${w.name}</div>
         <div class="range">${t12(w.start)} → ${t12(w.end)}</div>
         ${extra}
@@ -231,25 +163,19 @@ function render(data){
     `;
   });
 
-  // 🔥 Restricted times (restored)
-  const sunrise = fixed.find(w => w.name === "Fajr")?.end;
-  const dhuhr = fixed.find(w => w.name === "Dhuhr")?.start;
-  const maghrib = fixed.find(w => w.name === "Maghrib")?.start;
+  const sunrise=windows[0].end;
+  const dhuhr=windows[1].start;
+  const maghrib=windows[3].start;
 
-  document.getElementById('restricted').innerHTML = `
+  document.getElementById('restricted').innerHTML=`
     <div class="card">
-      Sunrise<br>
-      ${t12(sunrise)} → ${t12(new Date(sunrise.getTime()+15*60000))}
+      Sunrise<br>${t12(sunrise)} → ${t12(new Date(sunrise.getTime()+15*60000))}
     </div>
-
     <div class="card">
-      Zenith<br>
-      ${t12(new Date(dhuhr.getTime()-3*60000))} → ${t12(dhuhr)}
+      Zenith<br>${t12(new Date(dhuhr.getTime()-3*60000))} → ${t12(dhuhr)}
     </div>
-
     <div class="card">
-      Sunset<br>
-      ${t12(new Date(maghrib.getTime()-15*60000))} → ${t12(maghrib)}
+      Sunset<br>${t12(new Date(maghrib.getTime()-15*60000))} → ${t12(maghrib)}
     </div>
   `;
 }
@@ -258,9 +184,9 @@ function render(data){
   clock();
   setInterval(clock,1000);
 
-  const data = await getTimes();
-  render(data);
-  setInterval(()=>render(data),60000);
+  const t=await getTimes();
+  render(t);
+  setInterval(()=>render(t),60000);
 })();
 </script>
 
