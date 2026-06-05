@@ -185,7 +185,7 @@ async function getTimes(){
   }
 
   const r = await fetch(
-    `https://api.aladhan.com/v1/timings?latitude=${LAT}&longitude=${LNG}&method=2`
+    `https://api.aladhan.com/v1/timings?latitude=${LAT}&longitude=${LNG}&method=1`
   );
 
   const j = await r.json();
