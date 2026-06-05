@@ -8,16 +8,38 @@
 <title>Salah Dashboard</title>
 
 <style>
+
+:root{
+  /* Background */
+  --bg: linear-gradient(135deg,#f8fafc,#eef6ff,#f8fafc);
+
+  /* Typography */
+  --font: system-ui, sans-serif;
+  --text: #0f172a;
+  --muted: #64748b;
+
+  /* Cards */
+  --card-bg: #ffffff;
+  --card-shadow: 0 8px 30px rgba(0,0,0,.06);
+
+  /* Accent */
+  --accent: #2563eb;
+  --accent-ring: rgba(37,99,235,.15);
+
+  /* Progress bar */
+  --bar-bg: #e5e7eb;
+}
+
 body{
   margin:0;
   padding:20px;
   max-width:700px;
   margin:auto;
-  font-family:system-ui,sans-serif;
-  background:linear-gradient(135deg,#f8fafc,#eef6ff,#f8fafc);
+  font-family:var(--font);
+  background:var(--bg);
   background-size:400% 400%;
   animation:bg 40s ease infinite;
-  color:#0f172a;
+  color:var(--text);
 }
 
 @keyframes bg{
@@ -31,20 +53,20 @@ body{
 }
 
 .day{
-  color:#64748b;
+  color:var(--muted);
   margin-bottom:5px;
 }
 
 .card{
-  background:#fff;
+  background:var(--card-bg);
   border-radius:24px;
   padding:16px;
   margin:12px 0;
-  box-shadow:0 8px 30px rgba(0,0,0,.06);
+  box-shadow:var(--card-shadow);
 }
 
 .active{
-  border:2px solid #2563eb;
+  border:2px solid var(--accent);
 }
 
 .name{
@@ -53,7 +75,7 @@ body{
 }
 
 .range{
-  color:#64748b;
+  color:var(--muted);
   margin-top:4px;
 }
 
@@ -65,7 +87,7 @@ body{
 
 .bar{
   height:8px;
-  background:#e5e7eb;
+  background:var(--bar-bg);
   border-radius:99px;
   position:relative;
   margin-top:12px;
@@ -73,27 +95,28 @@ body{
 
 .fill{
   height:100%;
-  background:#2563eb;
+  background:var(--accent);
   border-radius:99px;
 }
 
 .dot{
   width:16px;
   height:16px;
-  background:#2563eb;
+  background:var(--accent);
   border-radius:50%;
   position:absolute;
   top:50%;
   transform:translate(-50%,-50%);
-  box-shadow:0 0 0 4px rgba(37,99,235,.15);
+  box-shadow:0 0 0 4px var(--accent-ring);
 }
 
 .section{
   margin-top:24px;
-  color:#64748b;
+  color:var(--muted);
   text-transform:uppercase;
   font-size:.85rem;
 }
+
 </style>
 </head>
 
