@@ -185,7 +185,10 @@ function render(data){
 
   const now = new Date();
 
-  const windows = [
+const afterMidnightBeforeFajr =
+  now < makeTime(data.Fajr);
+
+const windows = [
     {
       name:'Fajr',
       start:makeTime(data.Fajr),
@@ -208,8 +211,12 @@ function render(data){
     },
     {
       name:'Isha',
-      start:makeTime(data.Isha),
-      end:makeTime(data.Fajr,1)
+      start: afterMidnightBeforeFajr
+        ? makeTime(data.Isha,-1)
+        : makeTime(data.Isha),
+      end: afterMidnightBeforeFajr
+        ? makeTime(data.Fajr)
+        : makeTime(data.Fajr,1)
     }
   ];
 
